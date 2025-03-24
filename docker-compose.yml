@@ -1,0 +1,14 @@
+
+version: '3.8'
+
+services:
+  tic-tac-toe:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    # If you need environment variables, add them here
+    # environment:
+    #   - NODE_ENV=production
