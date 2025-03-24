@@ -12,9 +12,10 @@ interface WaitingRoomProps {
   onJoinGame: (gameId: string) => Promise<void>;
   onPlaySolo: () => Promise<void>;
   recentGames: GameState[];
+  isLoading: boolean;
 }
 
-const WaitingRoom = ({ onCreateGame, onJoinGame, onPlaySolo, recentGames }: WaitingRoomProps) => {
+const WaitingRoom = ({ onCreateGame, onJoinGame, onPlaySolo, recentGames, isLoading }: WaitingRoomProps) => {
   const [gameId, setGameId] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
@@ -86,7 +87,7 @@ const WaitingRoom = ({ onCreateGame, onJoinGame, onPlaySolo, recentGames }: Wait
         <CardContent className="grid grid-cols-2 gap-3">
           <Button 
             onClick={handleCreateGame}
-            disabled={isCreating || isJoining || isPlayingSolo}
+            disabled={isCreating || isJoining || isPlayingSolo || isLoading}
             className="w-full"
           >
             {isCreating ? 'Creating...' : 'Play with Friend'}
@@ -94,7 +95,7 @@ const WaitingRoom = ({ onCreateGame, onJoinGame, onPlaySolo, recentGames }: Wait
           
           <Button 
             onClick={handlePlaySolo}
-            disabled={isCreating || isJoining || isPlayingSolo}
+            disabled={isCreating || isJoining || isPlayingSolo || isLoading}
             variant="outline"
             className="w-full"
           >
@@ -118,10 +119,11 @@ const WaitingRoom = ({ onCreateGame, onJoinGame, onPlaySolo, recentGames }: Wait
               onChange={(e) => setGameId(e.target.value)}
               className="bg-background/80"
               autoComplete="off"
+              disabled={isLoading}
             />
             <Button 
               onClick={handleJoinGame}
-              disabled={isJoining || isCreating || isPlayingSolo || !gameId.trim()}
+              disabled={isJoining || isCreating || isPlayingSolo || !gameId.trim() || isLoading}
               className="shrink-0"
             >
               {isJoining ? 'Joining...' : 'Join'}
@@ -165,6 +167,7 @@ const WaitingRoom = ({ onCreateGame, onJoinGame, onPlaySolo, recentGames }: Wait
                     variant="ghost" 
                     size="sm" 
                     className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    disabled={isLoading}
                   >
                     Join
                   </Button>
