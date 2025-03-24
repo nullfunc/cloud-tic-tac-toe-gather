@@ -85,6 +85,7 @@ export const useGame = (playerId: string) => {
         status: 'waiting',
         createdAt: Date.now(),
         updatedAt: Date.now(),
+        isSinglePlayer: false,
       };
 
       await setDoc(gameRef, newGame);
@@ -98,6 +99,46 @@ export const useGame = (playerId: string) => {
       toast({
         title: 'Error',
         description: 'Failed to create game. Please try again.',
+        variant: 'destructive',
+      });
+      throw err;
+    }
+  };
+
+  // Create a solo game where the same player controls both sides
+  const createSoloGame = async (): Promise<string> => {
+    try {
+      setLoading(true);
+      
+      // Generate a random game ID
+      const gameId = Math.random().toString(36).substring(2, 8);
+      const gameRef = doc(db, 'games', gameId);
+      
+      // Create initial game state for solo play
+      const newGame: GameState = {
+        id: gameId,
+        board: initialBoard,
+        currentTurn: 'X',
+        playerX: playerId,
+        playerO: playerId, // Same player for both X and O
+        winner: null,
+        status: 'in-progress', // Start immediately since it's solo
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        isSinglePlayer: true,
+      };
+
+      await setDoc(gameRef, newGame);
+      setLoading(false);
+      
+      return gameId;
+    } catch (err) {
+      console.error('Error creating solo game:', err);
+      setError('Failed to create solo game');
+      setLoading(false);
+      toast({
+        title: 'Error',
+        description: 'Failed to create solo game. Please try again.',
         variant: 'destructive',
       });
       throw err;
@@ -178,7 +219,29 @@ export const useGame = (playerId: string) => {
   const makeMove = async (cellIndex: number): Promise<void> => {
     if (!gameId || !game) return;
 
-    if (!canMakeMove(game, playerId, cellIndex)) {
+    const isSoloGame = game.isSinglePlayer;
+    
+    // For solo games, allow moves regardless of player symbol
+    if (isSoloGame) {
+      if (game.status !== 'in-progress') {
+        toast({
+          title: 'Game not in progress',
+          description: game.status === 'waiting' 
+            ? 'Waiting for another player to join.'
+            : 'This game has ended.',
+        });
+        return;
+      }
+      
+      if (game.board[cellIndex] !== null) {
+        toast({
+          title: 'Invalid move',
+          description: 'This cell is already taken.',
+        });
+        return;
+      }
+    } else if (!canMakeMove(game, playerId, cellIndex)) {
+      // Regular multiplayer validation
       if (game.status !== 'in-progress') {
         toast({
           title: 'Game not in progress',
@@ -294,6 +357,7 @@ export const useGame = (playerId: string) => {
     loading,
     error,
     createGame,
+    createSoloGame,
     joinGame,
     makeMove,
     restartGame,

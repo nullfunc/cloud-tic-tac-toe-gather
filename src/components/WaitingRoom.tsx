@@ -10,13 +10,15 @@ import { cn } from '@/lib/utils';
 interface WaitingRoomProps {
   onCreateGame: () => Promise<void>;
   onJoinGame: (gameId: string) => Promise<void>;
+  onPlaySolo: () => Promise<void>;
   recentGames: GameState[];
 }
 
-const WaitingRoom = ({ onCreateGame, onJoinGame, recentGames }: WaitingRoomProps) => {
+const WaitingRoom = ({ onCreateGame, onJoinGame, onPlaySolo, recentGames }: WaitingRoomProps) => {
   const [gameId, setGameId] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [isPlayingSolo, setIsPlayingSolo] = useState(false);
   const { toast } = useToast();
 
   const handleCreateGame = async () => {
@@ -50,6 +52,17 @@ const WaitingRoom = ({ onCreateGame, onJoinGame, recentGames }: WaitingRoomProps
     }
   };
 
+  const handlePlaySolo = async () => {
+    try {
+      setIsPlayingSolo(true);
+      await onPlaySolo();
+    } catch (error) {
+      console.error('Error starting solo game:', error);
+    } finally {
+      setIsPlayingSolo(false);
+    }
+  };
+
   const handleJoinRecentGame = async (id: string) => {
     try {
       setIsJoining(true);
@@ -65,20 +78,29 @@ const WaitingRoom = ({ onCreateGame, onJoinGame, recentGames }: WaitingRoomProps
     <div className="w-full max-w-md space-y-4 animate-fade-in">
       <Card className="bg-card/60 backdrop-blur-sm border-border/50">
         <CardHeader>
-          <CardTitle>Create New Game</CardTitle>
+          <CardTitle>Game Options</CardTitle>
           <CardDescription>
-            Start a new game and invite a friend to play
+            Choose how you want to play
           </CardDescription>
         </CardHeader>
-        <CardFooter>
+        <CardContent className="grid grid-cols-2 gap-3">
           <Button 
             onClick={handleCreateGame}
-            disabled={isCreating || isJoining}
+            disabled={isCreating || isJoining || isPlayingSolo}
             className="w-full"
           >
-            {isCreating ? 'Creating...' : 'Create Game'}
+            {isCreating ? 'Creating...' : 'Play with Friend'}
           </Button>
-        </CardFooter>
+          
+          <Button 
+            onClick={handlePlaySolo}
+            disabled={isCreating || isJoining || isPlayingSolo}
+            variant="outline"
+            className="w-full"
+          >
+            {isPlayingSolo ? 'Starting...' : 'Play Solo'}
+          </Button>
+        </CardContent>
       </Card>
 
       <Card className="bg-card/60 backdrop-blur-sm border-border/50">
@@ -99,7 +121,7 @@ const WaitingRoom = ({ onCreateGame, onJoinGame, recentGames }: WaitingRoomProps
             />
             <Button 
               onClick={handleJoinGame}
-              disabled={isJoining || isCreating || !gameId.trim()}
+              disabled={isJoining || isCreating || isPlayingSolo || !gameId.trim()}
               className="shrink-0"
             >
               {isJoining ? 'Joining...' : 'Join'}

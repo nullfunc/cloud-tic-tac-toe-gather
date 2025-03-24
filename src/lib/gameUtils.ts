@@ -13,6 +13,7 @@ export interface GameState {
   status: GameStatus;
   createdAt: number;
   updatedAt: number;
+  isSinglePlayer?: boolean;
 }
 
 export const initialBoard: GameBoard = Array(9).fill(null);
@@ -106,6 +107,9 @@ export const canMakeMove = (
   if (!playerId || !game) return false;
   if (game.status !== "in-progress") return false;
   if (game.board[cellIndex] !== null) return false;
+  
+  // For single-player games, allow moves regardless of current turn
+  if (game.isSinglePlayer) return true;
   
   const playerSymbol = getPlayerSymbol(playerId, game);
   return playerSymbol === game.currentTurn;

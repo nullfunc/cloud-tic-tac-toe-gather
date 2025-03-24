@@ -31,7 +31,7 @@ const GameLobby = () => {
     }
   }, []);
   
-  const { createGame, joinGame, findRecentGames } = useGame(playerId);
+  const { createGame, joinGame, findRecentGames, createSoloGame } = useGame(playerId);
   
   // Load recent games
   useEffect(() => {
@@ -80,12 +80,35 @@ const GameLobby = () => {
     
     await joinGame(gameId);
   };
+
+  const handlePlaySolo = async () => {
+    if (!playerId) {
+      toast({
+        title: 'Error',
+        description: 'Could not create player profile. Please refresh the page.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    try {
+      const gameId = await createSoloGame();
+      navigate(`/game/${gameId}`);
+      toast({
+        title: 'Solo game started',
+        description: 'You can now play against yourself!',
+      });
+    } catch (error) {
+      console.error('Error in handlePlaySolo:', error);
+    }
+  };
   
   return (
     <>
       <WaitingRoom
         onCreateGame={handleCreateGame}
         onJoinGame={handleJoinGame}
+        onPlaySolo={handlePlaySolo}
         recentGames={recentGames}
       />
     </>

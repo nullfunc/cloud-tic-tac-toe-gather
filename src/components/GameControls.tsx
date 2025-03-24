@@ -19,7 +19,7 @@ const GameControls = ({ game, playerId, onRestart, onShareGame }: GameControlsPr
 
   if (!game) return null;
 
-  const { id, status, playerX, playerO, winner, currentTurn } = game;
+  const { id, status, playerX, playerO, winner, currentTurn, isSinglePlayer } = game;
   const isActivePlayer = playerId === playerX || playerId === playerO;
   const isPlayerX = playerId === playerX;
   const isPlayerO = playerId === playerO;
@@ -71,7 +71,7 @@ const GameControls = ({ game, playerId, onRestart, onShareGame }: GameControlsPr
             )}>
               <div className="text-sm font-medium">Player X</div>
               <div className="text-xs text-muted-foreground">
-                {isPlayerX ? "You" : playerX ? "Opponent" : "Waiting..."}
+                {isSinglePlayer ? "You" : isPlayerX ? "You" : playerX ? "Opponent" : "Waiting..."}
               </div>
             </div>
             <div className={cn(
@@ -81,7 +81,7 @@ const GameControls = ({ game, playerId, onRestart, onShareGame }: GameControlsPr
             )}>
               <div className="text-sm font-medium">Player O</div>
               <div className="text-xs text-muted-foreground">
-                {isPlayerO ? "You" : playerO ? "Opponent" : "Waiting..."}
+                {isSinglePlayer ? "You" : isPlayerO ? "You" : playerO ? "Opponent" : "Waiting..."}
               </div>
             </div>
           </div>
@@ -98,7 +98,7 @@ const GameControls = ({ game, playerId, onRestart, onShareGame }: GameControlsPr
             </Button>
           )}
           
-          {status === 'waiting' && (
+          {status === 'waiting' && !isSinglePlayer && (
             <Button 
               onClick={onShareGame} 
               variant="outline"
