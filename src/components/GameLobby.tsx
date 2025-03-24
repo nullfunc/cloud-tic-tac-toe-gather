@@ -9,6 +9,7 @@ import { GameState, generateRandomName } from '@/lib/gameUtils';
 const GameLobby = () => {
   const [playerId, setPlayerId] = useState<string>('');
   const [recentGames, setRecentGames] = useState<GameState[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -29,22 +30,37 @@ const GameLobby = () => {
       const newPlayerName = generateRandomName();
       localStorage.setItem('playerName', newPlayerName);
     }
+    
+    setIsLoading(false);
   }, []);
   
   const { createGame, joinGame, findRecentGames, createSoloGame } = useGame(playerId);
   
-  // Load recent games
+  // Load recent games with better error handling and loading states
   useEffect(() => {
+    const loadGames = async () => {
+      if (!playerId) return;
+      
+      try {
+        setIsLoading(true);
+        const games = await findRecentGames();
+        setRecentGames(games);
+      } catch (error) {
+        console.error('Failed to load recent games:', error);
+        toast({
+          title: 'Connection issue',
+          description: 'Could not load recent games. Please try again.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
     if (playerId) {
-      loadRecentGames();
+      loadGames();
     }
-  }, [playerId]);
-  
-  const loadRecentGames = async () => {
-    if (!playerId) return;
-    const games = await findRecentGames();
-    setRecentGames(games);
-  };
+  }, [playerId, findRecentGames, toast]);
   
   const handleCreateGame = async () => {
     if (!playerId) {
@@ -57,6 +73,7 @@ const GameLobby = () => {
     }
     
     try {
+      setIsLoading(true);
       const gameId = await createGame();
       navigate(`/game/${gameId}`);
       toast({
@@ -65,6 +82,12 @@ const GameLobby = () => {
       });
     } catch (error) {
       console.error('Error in handleCreateGame:', error);
+      toast({
+        title: 'Connection issue',
+        description: 'Failed to create game. Please check your connection and try again.',
+        variant: 'destructive',
+      });
+      setIsLoading(false);
     }
   };
   
@@ -78,7 +101,13 @@ const GameLobby = () => {
       return;
     }
     
-    await joinGame(gameId);
+    try {
+      setIsLoading(true);
+      await joinGame(gameId);
+    } catch (error) {
+      console.error('Error in handleJoinGame:', error);
+      setIsLoading(false);
+    }
   };
 
   const handlePlaySolo = async () => {
@@ -92,6 +121,7 @@ const GameLobby = () => {
     }
     
     try {
+      setIsLoading(true);
       const gameId = await createSoloGame();
       navigate(`/game/${gameId}`);
       toast({
@@ -100,6 +130,12 @@ const GameLobby = () => {
       });
     } catch (error) {
       console.error('Error in handlePlaySolo:', error);
+      toast({
+        title: 'Connection issue',
+        description: 'Failed to create solo game. Please check your connection and try again.',
+        variant: 'destructive',
+      });
+      setIsLoading(false);
     }
   };
   
@@ -110,6 +146,7 @@ const GameLobby = () => {
         onJoinGame={handleJoinGame}
         onPlaySolo={handlePlaySolo}
         recentGames={recentGames}
+        isLoading={isLoading}
       />
     </>
   );

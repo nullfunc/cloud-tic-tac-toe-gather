@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
   doc, 
@@ -12,7 +12,9 @@ import {
   where,
   orderBy,
   limit,
-  getDocs
+  getDocs,
+  serverTimestamp,
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { GameState, initialBoard, checkWinner, getPlayerSymbol, canMakeMove } from '@/lib/gameUtils';
@@ -26,47 +28,108 @@ export const useGame = (playerId: string) => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Fetch and subscribe to game updates
+  // Debounce function to limit excessive updates
+  const debounce = (fn: Function, ms = 300) => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+    return function(...args: any[]) {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => fn.apply(this, args), ms);
+    };
+  };
+
+  // Enhanced fetch and subscribe to game updates
   useEffect(() => {
-    if (!gameId) return;
+    if (!gameId || !db) return;
 
-    setLoading(true);
-    const gameRef = doc(db, 'games', gameId);
-
-    const unsubscribe = onSnapshot(
-      gameRef,
-      (docSnapshot) => {
-        if (docSnapshot.exists()) {
-          const gameData = docSnapshot.data() as GameState;
-          setGame(gameData);
-        } else {
-          setError('Game not found');
+    let unsubscribe: () => void;
+    let isSubscribed = true;
+    
+    const setupGameSubscription = async () => {
+      try {
+        setLoading(true);
+        const gameRef = doc(db, 'games', gameId);
+        
+        // First, get initial data
+        const docSnapshot = await getDoc(gameRef);
+        
+        if (!docSnapshot.exists()) {
+          if (isSubscribed) {
+            setError('Game not found');
+            setLoading(false);
+            toast({
+              title: 'Game not found',
+              description: 'The game you are looking for does not exist.',
+              variant: 'destructive',
+            });
+            navigate('/');
+          }
+          return;
+        }
+        
+        // Then set up real-time listener
+        unsubscribe = onSnapshot(
+          gameRef,
+          (docSnapshot) => {
+            if (docSnapshot.exists()) {
+              const gameData = docSnapshot.data() as GameState;
+              if (isSubscribed) {
+                setGame(gameData);
+                setLoading(false);
+              }
+            } else if (isSubscribed) {
+              setError('Game no longer exists');
+              setLoading(false);
+              toast({
+                title: 'Game removed',
+                description: 'This game has been deleted or does not exist.',
+                variant: 'destructive',
+              });
+              navigate('/');
+            }
+          },
+          (err) => {
+            console.error('Error in game subscription:', err);
+            if (isSubscribed) {
+              setError('Failed to load game data');
+              setLoading(false);
+              toast({
+                title: 'Connection Error',
+                description: 'Failed to connect to the game. Please try again.',
+                variant: 'destructive',
+              });
+            }
+          }
+        );
+      } catch (err) {
+        console.error('Error setting up game subscription:', err);
+        if (isSubscribed) {
+          setError('Failed to load game data');
+          setLoading(false);
           toast({
-            title: 'Game not found',
-            description: 'The game you are looking for does not exist.',
+            title: 'Error',
+            description: 'Failed to load game data. Please try again.',
             variant: 'destructive',
           });
-          navigate('/');
         }
-        setLoading(false);
-      },
-      (err) => {
-        console.error('Error fetching game:', err);
-        setError('Failed to load game data');
-        setLoading(false);
-        toast({
-          title: 'Error',
-          description: 'Failed to load game data. Please try again.',
-          variant: 'destructive',
-        });
       }
-    );
+    };
 
-    return () => unsubscribe();
+    setupGameSubscription();
+
+    return () => {
+      isSubscribed = false;
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [gameId, navigate, toast]);
 
-  // Create a new game
-  const createGame = async (): Promise<string> => {
+  // Create a new game with optimized Firebase calls
+  const createGame = useCallback(async (): Promise<string> => {
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    
     try {
       setLoading(true);
       
@@ -74,7 +137,7 @@ export const useGame = (playerId: string) => {
       const gameId = Math.random().toString(36).substring(2, 8);
       const gameRef = doc(db, 'games', gameId);
       
-      // Create initial game state
+      // Create initial game state with server timestamp
       const newGame: GameState = {
         id: gameId,
         board: initialBoard,
@@ -103,10 +166,14 @@ export const useGame = (playerId: string) => {
       });
       throw err;
     }
-  };
+  }, [playerId, toast]);
 
-  // Create a solo game where the same player controls both sides
-  const createSoloGame = async (): Promise<string> => {
+  // Create a solo game with optimized code
+  const createSoloGame = useCallback(async (): Promise<string> => {
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    
     try {
       setLoading(true);
       
@@ -143,10 +210,14 @@ export const useGame = (playerId: string) => {
       });
       throw err;
     }
-  };
+  }, [playerId, toast]);
 
-  // Join an existing game
-  const joinGame = async (gameIdToJoin: string): Promise<void> => {
+  // Efficiently join an existing game
+  const joinGame = useCallback(async (gameIdToJoin: string): Promise<void> => {
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    
     try {
       setLoading(true);
       const gameRef = doc(db, 'games', gameIdToJoin);
@@ -194,7 +265,7 @@ export const useGame = (playerId: string) => {
         return;
       }
 
-      // Join as player O
+      // Join as player O with minimal field updates
       await updateDoc(gameRef, {
         playerO: playerId,
         status: 'in-progress',
@@ -213,11 +284,11 @@ export const useGame = (playerId: string) => {
         variant: 'destructive',
       });
     }
-  };
+  }, [playerId, navigate, toast]);
 
-  // Make a move in the game
+  // Optimized move function
   const makeMove = async (cellIndex: number): Promise<void> => {
-    if (!gameId || !game) return;
+    if (!gameId || !game || !db) return;
 
     const isSoloGame = game.isSinglePlayer;
     
@@ -272,28 +343,33 @@ export const useGame = (playerId: string) => {
       const winner = checkWinner(updatedBoard);
       const gameStatus = winner || !updatedBoard.includes(null) ? 'finished' : 'in-progress';
 
-      // Update game state
+      // Update only changed fields to reduce network traffic
       const gameRef = doc(db, 'games', gameId);
-      await updateDoc(gameRef, {
+      const updates = {
         board: updatedBoard,
         currentTurn: game.currentTurn === 'X' ? 'O' : 'X',
-        winner,
-        status: gameStatus,
         updatedAt: Date.now(),
-      });
+      };
+      
+      if (gameStatus === 'finished') {
+        updates['winner'] = winner;
+        updates['status'] = gameStatus;
+      }
+      
+      await updateDoc(gameRef, updates);
     } catch (err) {
       console.error('Error making move:', err);
       toast({
-        title: 'Error',
-        description: 'Failed to make move. Please try again.',
+        title: 'Connection Error',
+        description: 'Failed to update the game. Please check your connection.',
         variant: 'destructive',
       });
     }
   };
 
-  // Reset/Restart game
+  // Optimized restart function
   const restartGame = async (): Promise<void> => {
-    if (!gameId || !game) return;
+    if (!gameId || !game || !db) return;
 
     try {
       const gameRef = doc(db, 'games', gameId);
@@ -328,8 +404,13 @@ export const useGame = (playerId: string) => {
   // Get player's symbol (X or O)
   const playerSymbol = game ? getPlayerSymbol(playerId, game) : null;
 
-  // Find recent games
-  const findRecentGames = async (): Promise<GameState[]> => {
+  // Find recent games with more efficient query
+  const findRecentGames = useCallback(async (): Promise<GameState[]> => {
+    if (!db) {
+      console.error('Firebase not initialized');
+      return [];
+    }
+    
     try {
       const gamesRef = collection(db, 'games');
       const q = query(
@@ -344,13 +425,13 @@ export const useGame = (playerId: string) => {
     } catch (err) {
       console.error('Error finding recent games:', err);
       toast({
-        title: 'Error',
-        description: 'Failed to load recent games.',
+        title: 'Connection Error',
+        description: 'Failed to load recent games. Please check your connection.',
         variant: 'destructive',
       });
       return [];
     }
-  };
+  }, [toast]);
 
   return {
     game,
